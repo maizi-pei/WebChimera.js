@@ -3,22 +3,21 @@
 #include "NodeTools.h"
 #include "JsVlcPlayer.h"
 
-v8::Persistent<v8::Function> JsVlcSubtitles::_jsConstructor;
+v8::Persistent <v8::Function> JsVlcSubtitles::_jsConstructor;
 
-void JsVlcSubtitles::initJsApi()
-{
+void JsVlcSubtitles::initJsApi() {
     using namespace v8;
 
-    Isolate* isolate = Isolate::GetCurrent();
+    Isolate *isolate = Isolate::GetCurrent();
     HandleScope scope(isolate);
-    Local<Context> context = isolate->GetCurrentContext();
+    Local <Context> context = isolate->GetCurrentContext();
 
-    Local<FunctionTemplate> constructorTemplate = FunctionTemplate::New(isolate, jsCreate);
+    Local <FunctionTemplate> constructorTemplate = FunctionTemplate::New(isolate, jsCreate);
     constructorTemplate->SetClassName(
-        String::NewFromUtf8(isolate, "VlcSubtitles", NewStringType::kInternalized).ToLocalChecked());
+            String::NewFromUtf8(isolate, "VlcSubtitles", NewStringType::kInternalized).ToLocalChecked());
 
-    Local<ObjectTemplate> protoTemplate = constructorTemplate->PrototypeTemplate();
-    Local<ObjectTemplate> instanceTemplate = constructorTemplate->InstanceTemplate();
+    Local <ObjectTemplate> protoTemplate = constructorTemplate->PrototypeTemplate();
+    Local <ObjectTemplate> instanceTemplate = constructorTemplate->InstanceTemplate();
     instanceTemplate->SetInternalFieldCount(1);
 
     SET_RO_INDEXED_PROPERTY(instanceTemplate, &JsVlcSubtitles::description);
@@ -30,76 +29,72 @@ void JsVlcSubtitles::initJsApi()
 
     SET_METHOD(constructorTemplate, "load", &JsVlcSubtitles::load);
 
-    Local<Function> constructor = constructorTemplate->GetFunction(context).ToLocalChecked();
+    Local <Function> constructor = constructorTemplate->GetFunction(context).ToLocalChecked();
     _jsConstructor.Reset(isolate, constructor);
 }
 
-v8::UniquePersistent<v8::Object> JsVlcSubtitles::create(JsVlcPlayer& player)
-{
+v8::UniquePersistent <v8::Object> JsVlcSubtitles::create(JsVlcPlayer &player) {
     using namespace v8;
 
-    Isolate* isolate = Isolate::GetCurrent();
-    Local<Context> context = isolate->GetCurrentContext();
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
     HandleScope scope(isolate);
 
-    Local<Function> constructor =
-        Local<Function>::New(isolate, _jsConstructor);
+    Local <Function> constructor =
+            Local<Function>::New(isolate, _jsConstructor);
 
-    Local<Value> argv[] = { player.handle() };
+    Local <Value> argv[] = {player.handle()};
 
     return {
-        isolate,
-        constructor->NewInstance(context, sizeof(argv) / sizeof(argv[0]), argv).ToLocalChecked()
+            isolate,
+            constructor->NewInstance(context, sizeof(argv) / sizeof(argv[0]), argv).ToLocalChecked()
     };
 }
 
-void JsVlcSubtitles::jsCreate(const v8::FunctionCallbackInfo<v8::Value>& args)
-{
+void JsVlcSubtitles::jsCreate(const v8::FunctionCallbackInfo <v8::Value> &args) {
     using namespace v8;
 
-    Isolate* isolate = Isolate::GetCurrent();
-    Local<Context> context = isolate->GetCurrentContext();
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
     HandleScope scope(isolate);
 
-    Local<Object> thisObject = args.Holder();
-    if(args.IsConstructCall() && thisObject->InternalFieldCount() > 0) {
-        JsVlcPlayer* jsPlayer =
-            ObjectWrap::Unwrap<JsVlcPlayer>(Handle<Object>::Cast(args[0]));
-        if(jsPlayer) {
-            JsVlcSubtitles* jsPlaylist = new JsVlcSubtitles(thisObject, jsPlayer);
+    Local <Object> thisObject = args.Holder();
+    if (args.IsConstructCall() && thisObject->InternalFieldCount() > 0) {
+        JsVlcPlayer *jsPlayer =
+                ObjectWrap::Unwrap<JsVlcPlayer>(Handle<Object>::Cast(args[0]));
+        if (jsPlayer) {
+            JsVlcSubtitles *jsPlaylist = new JsVlcSubtitles(thisObject, jsPlayer);
             args.GetReturnValue().Set(thisObject);
         }
     } else {
-        Local<Function> constructor =
-            Local<Function>::New(isolate, _jsConstructor);
-        Local<Value> argv[] = { args[0] };
+        Local <Function> constructor =
+                Local<Function>::New(isolate, _jsConstructor);
+        Local <Value> argv[] = {args[0]};
         args.GetReturnValue().Set(
-            constructor->NewInstance(context, sizeof(argv) / sizeof(argv[0]), argv).ToLocalChecked());
+                constructor->NewInstance(context, sizeof(argv) / sizeof(argv[0]), argv).ToLocalChecked());
     }
 }
 
 JsVlcSubtitles::JsVlcSubtitles(
-    v8::Local<v8::Object>& thisObject, JsVlcPlayer* jsPlayer) :
-    _jsPlayer(jsPlayer)
-{
+        v8::Local <v8::Object> &thisObject, JsVlcPlayer *jsPlayer) :
+        _jsPlayer(jsPlayer) {
     Wrap(thisObject);
 }
 
-std::string JsVlcSubtitles::description(uint32_t index)
-{
-    vlc_player& p = _jsPlayer->player();
+std::string JsVlcSubtitles::description(uint32_t index) {
+    vlc_player &p = _jsPlayer->player();
 
     std::string name;
 
-    libvlc_track_description_t* rootDesc =
-        libvlc_video_get_spu_description(p.get_mp());
-    if(!rootDesc)
+    libvlc_track_description_t *rootDesc =
+            libvlc_video_get_spu_description(p.get_mp());
+    if (!rootDesc)
         return name;
 
     unsigned count = libvlc_video_get_spu_count(p.get_mp());
-    if(count && index < count) {
-        libvlc_track_description_t* desc = rootDesc;
-        for(; index && desc; --index){
+    if (count && index < count) {
+        libvlc_track_description_t *desc = rootDesc;
+        for (; index && desc; --index) {
             desc = desc->p_next;
         }
 
@@ -112,32 +107,26 @@ std::string JsVlcSubtitles::description(uint32_t index)
     return name;
 }
 
-unsigned JsVlcSubtitles::count()
-{
+unsigned JsVlcSubtitles::count() {
     return _jsPlayer->player().subtitles().track_count();
 }
 
-int JsVlcSubtitles::track()
-{
+int JsVlcSubtitles::track() {
     return _jsPlayer->player().subtitles().get_track();
 }
 
-void JsVlcSubtitles::setTrack(int track)
-{
+void JsVlcSubtitles::setTrack(int track) {
     return _jsPlayer->player().subtitles().set_track(track);
 }
 
-int JsVlcSubtitles::delay()
-{
+int JsVlcSubtitles::delay() {
     return static_cast<int>(_jsPlayer->player().subtitles().get_delay());
 }
 
-void JsVlcSubtitles::setDelay(int delay)
-{
+void JsVlcSubtitles::setDelay(int delay) {
     _jsPlayer->player().subtitles().set_delay(delay);
 }
 
-bool JsVlcSubtitles::load(const std::string& path)
-{
+bool JsVlcSubtitles::load(const std::string &path) {
     return _jsPlayer->player().subtitles().load(path);
 }

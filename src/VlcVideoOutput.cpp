@@ -6,43 +6,36 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 VlcVideoOutput::VideoFrame::VideoFrame() :
-    _width(0), _height(0), _size(0),
-    _frameBuffer(nullptr)
-{
+        _width(0), _height(0), _size(0),
+        _frameBuffer(nullptr) {
 }
 
-VlcVideoOutput::VideoFrame::~VideoFrame()
-{
+VlcVideoOutput::VideoFrame::~VideoFrame() {
 }
 
-void VlcVideoOutput::VideoFrame::waitBuffer()
-{
-    std::unique_lock<std::mutex> lock(_guard);
-    while(!_frameBuffer)
+void VlcVideoOutput::VideoFrame::waitBuffer() {
+    std::unique_lock <std::mutex> lock(_guard);
+    while (!_frameBuffer)
         _waiter.wait(lock);
 }
 
-void VlcVideoOutput::VideoFrame::setFrameBuffer(void* frameBuffer)
-{
-    std::unique_lock<std::mutex> lock(_guard);
+void VlcVideoOutput::VideoFrame::setFrameBuffer(void *frameBuffer) {
+    std::unique_lock <std::mutex> lock(_guard);
     _frameBuffer = frameBuffer;
     _waiter.notify_one();
 }
 
-void VlcVideoOutput::VideoFrame::video_unlock_cb(void* picture, void *const * planes)
-{
+void VlcVideoOutput::VideoFrame::video_unlock_cb(void *picture, void *const *planes) {
 };
 
-void VlcVideoOutput::VideoFrame::video_cleanup_cb()
-{
+void VlcVideoOutput::VideoFrame::video_cleanup_cb() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 unsigned VlcVideoOutput::RV32VideoFrame::video_format_cb(
-    char* chroma,
-    unsigned* width, unsigned* height,
-    unsigned* pitches, unsigned* lines)
-{
+        char *chroma,
+        unsigned *width, unsigned *height,
+        unsigned *pitches, unsigned *lines) {
     _width = *width;
     _height = *height;
 
@@ -55,31 +48,27 @@ unsigned VlcVideoOutput::RV32VideoFrame::video_format_cb(
     return 1;
 }
 
-void* VlcVideoOutput::RV32VideoFrame::video_lock_cb(void** planes)
-{
+void *VlcVideoOutput::RV32VideoFrame::video_lock_cb(void **planes) {
     *planes = _frameBuffer;
 
     return nullptr;
 }
 
-void VlcVideoOutput::RV32VideoFrame::fillBlack()
-{
-    if(_frameBuffer) {
+void VlcVideoOutput::RV32VideoFrame::fillBlack() {
+    if (_frameBuffer) {
         memset(_frameBuffer, 0, size());
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 VlcVideoOutput::I420VideoFrame::I420VideoFrame() :
-    _uPlaneOffset(0), _vPlaneOffset(0)
-{
+        _uPlaneOffset(0), _vPlaneOffset(0) {
 }
 
 unsigned VlcVideoOutput::I420VideoFrame::video_format_cb(
-    char* chroma,
-    unsigned* width, unsigned* height,
-    unsigned* pitches, unsigned* lines)
-{
+        char *chroma,
+        unsigned *width, unsigned *height,
+        unsigned *pitches, unsigned *lines) {
     _width = *width;
     _height = *height;
 
@@ -90,8 +79,10 @@ unsigned VlcVideoOutput::I420VideoFrame::video_format_cb(
     const unsigned evenWidth = *width + (*width & 1);
     const unsigned evenHeight = *height + (*height & 1);
 
-    pitches[0] = evenWidth; if(pitches[0] % 4) pitches[0] += 4 - pitches[0] % 4;
-    pitches[1] = evenWidth / 2; if(pitches[1] % 4) pitches[1] += 4 - pitches[1] % 4;
+    pitches[0] = evenWidth;
+    if (pitches[0] % 4) pitches[0] += 4 - pitches[0] % 4;
+    pitches[1] = evenWidth / 2;
+    if (pitches[1] % 4) pitches[1] += 4 - pitches[1] % 4;
     pitches[2] = pitches[1];
 
     assert(0 == pitches[0] % 4 && 0 == pitches[1] % 4 && 0 == pitches[2] % 4);
@@ -104,16 +95,15 @@ unsigned VlcVideoOutput::I420VideoFrame::video_format_cb(
     _vPlaneOffset = _uPlaneOffset + pitches[1] * lines[1];
 
     _size =
-        pitches[0] * lines[0] +
-        pitches[1] * lines[1] +
-        pitches[2] * lines[2];
+            pitches[0] * lines[0] +
+            pitches[1] * lines[1] +
+            pitches[2] * lines[2];
 
     return 3;
 }
 
-void* VlcVideoOutput::I420VideoFrame::video_lock_cb(void** planes)
-{
-    char* buffer = static_cast<char*>(_frameBuffer);
+void *VlcVideoOutput::I420VideoFrame::video_lock_cb(void **planes) {
+    char *buffer = static_cast<char *>(_frameBuffer);
 
     planes[0] = buffer;
     planes[1] = buffer + _uPlaneOffset;
@@ -123,15 +113,13 @@ void* VlcVideoOutput::I420VideoFrame::video_lock_cb(void** planes)
 }
 
 void VlcVideoOutput::I420VideoFrame::video_unlock_cb(
-        void* picture, void *const * planes)
-{
+        void *picture, void *const *planes) {
     VideoFrame::video_unlock_cb(picture, planes);
 }
 
-void VlcVideoOutput::I420VideoFrame::fillBlack()
-{
-    if(_frameBuffer) {
-        char* buffer = static_cast<char*>(_frameBuffer);
+void VlcVideoOutput::I420VideoFrame::fillBlack() {
+    if (_frameBuffer) {
+        char *buffer = static_cast<char *>(_frameBuffer);
         memset(buffer, 0x0, _uPlaneOffset);
         memset(buffer + _uPlaneOffset, 0x80, _vPlaneOffset - _uPlaneOffset);
         memset(buffer + _vPlaneOffset, 0x80, size() - _vPlaneOffset);
@@ -139,84 +127,75 @@ void VlcVideoOutput::I420VideoFrame::fillBlack()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-struct VlcVideoOutput::VideoEvent
-{
-    virtual void process(VlcVideoOutput*) = 0;
+struct VlcVideoOutput::VideoEvent {
+    virtual void process(VlcVideoOutput *) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct VlcVideoOutput::RV32FrameSetupEvent : public VlcVideoOutput::VideoEvent
-{
-    RV32FrameSetupEvent(const std::shared_ptr<RV32VideoFrame>& videoFrame) :
-        _videoFrame(videoFrame) {}
+struct VlcVideoOutput::RV32FrameSetupEvent : public VlcVideoOutput::VideoEvent {
+    RV32FrameSetupEvent(const std::shared_ptr <RV32VideoFrame> &videoFrame) :
+            _videoFrame(videoFrame) {}
 
-    void process(VlcVideoOutput*) override;
+    void process(VlcVideoOutput *) override;
 
-    std::weak_ptr<RV32VideoFrame> _videoFrame;
+    std::weak_ptr <RV32VideoFrame> _videoFrame;
 };
 
-void VlcVideoOutput::RV32FrameSetupEvent::process(VlcVideoOutput* videoOutput)
-{
-    std::shared_ptr<RV32VideoFrame> videoFrame = _videoFrame.lock();
+void VlcVideoOutput::RV32FrameSetupEvent::process(VlcVideoOutput *videoOutput) {
+    std::shared_ptr <RV32VideoFrame> videoFrame = _videoFrame.lock();
 
-    if(!videoFrame)
+    if (!videoFrame)
         return;
 
     videoOutput->_currentVideoFrame = videoFrame;
 
-    void* buffer = videoOutput->onFrameSetup(*videoFrame);
-    if(buffer)
+    void *buffer = videoOutput->onFrameSetup(*videoFrame);
+    if (buffer)
         videoFrame->setFrameBuffer(buffer);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-struct VlcVideoOutput::I420FrameSetupEvent : public VlcVideoOutput::VideoEvent
-{
-    I420FrameSetupEvent(const std::shared_ptr<I420VideoFrame>& videoFrame) :
-        _videoFrame(videoFrame) {}
+struct VlcVideoOutput::I420FrameSetupEvent : public VlcVideoOutput::VideoEvent {
+    I420FrameSetupEvent(const std::shared_ptr <I420VideoFrame> &videoFrame) :
+            _videoFrame(videoFrame) {}
 
-    void process(VlcVideoOutput*) override;
+    void process(VlcVideoOutput *) override;
 
-    std::weak_ptr<I420VideoFrame> _videoFrame;
+    std::weak_ptr <I420VideoFrame> _videoFrame;
 };
 
-void VlcVideoOutput::I420FrameSetupEvent::process(VlcVideoOutput* videoOutput)
-{
-    std::shared_ptr<I420VideoFrame> videoFrame = _videoFrame.lock();
+void VlcVideoOutput::I420FrameSetupEvent::process(VlcVideoOutput *videoOutput) {
+    std::shared_ptr <I420VideoFrame> videoFrame = _videoFrame.lock();
 
-    if(!videoFrame)
+    if (!videoFrame)
         return;
 
     videoOutput->_currentVideoFrame = videoFrame;
 
-    void* buffer = videoOutput->onFrameSetup(*videoFrame);
-    if(buffer)
+    void *buffer = videoOutput->onFrameSetup(*videoFrame);
+    if (buffer)
         videoFrame->setFrameBuffer(buffer);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-struct VlcVideoOutput::FrameReadyEvent : public VlcVideoOutput::VideoEvent
-{
-    void process(VlcVideoOutput*) override;
+struct VlcVideoOutput::FrameReadyEvent : public VlcVideoOutput::VideoEvent {
+    void process(VlcVideoOutput *) override;
 };
 
-void VlcVideoOutput::FrameReadyEvent::process(VlcVideoOutput* videoOutput)
-{
-    if(videoOutput->_waitingFrame.test_and_set()) //FIXME! use memory_order
+void VlcVideoOutput::FrameReadyEvent::process(VlcVideoOutput *videoOutput) {
+    if (videoOutput->_waitingFrame.test_and_set()) //FIXME! use memory_order
         return;
 
     videoOutput->onFrameReady();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-struct VlcVideoOutput::FrameCleanupEvent : public VlcVideoOutput::VideoEvent
-{
-    void process(VlcVideoOutput*) override;
+struct VlcVideoOutput::FrameCleanupEvent : public VlcVideoOutput::VideoEvent {
+    void process(VlcVideoOutput *) override;
 };
 
-void VlcVideoOutput::FrameCleanupEvent::process(VlcVideoOutput* videoOutput)
-{
-    if(videoOutput->_currentVideoFrame) {
+void VlcVideoOutput::FrameCleanupEvent::process(VlcVideoOutput *videoOutput) {
+    if (videoOutput->_currentVideoFrame) {
         videoOutput->onFrameCleanup();
         videoOutput->_currentVideoFrame.reset();
     }
@@ -224,43 +203,40 @@ void VlcVideoOutput::FrameCleanupEvent::process(VlcVideoOutput* videoOutput)
 
 ///////////////////////////////////////////////////////////////////////////////
 VlcVideoOutput::VlcVideoOutput() :
-    _pixelFormat(PixelFormat::I420)
-{
-    uv_loop_t* loop = uv_default_loop();
+        _pixelFormat(PixelFormat::I420) {
+    uv_loop_t *loop = uv_default_loop();
 
     uv_async_init(loop, &_async,
-        [] (uv_async_t* handle) {
-            if(handle->data)
-                reinterpret_cast<VlcVideoOutput*>(handle->data)->handleAsync();
-        }
-   );
+                  [](uv_async_t *handle) {
+                      if (handle->data)
+                          reinterpret_cast<VlcVideoOutput *>(handle->data)->handleAsync();
+                  }
+    );
     _async.data = this;
 
     _waitingFrame.test_and_set(); //FIXME! use memory_order
 }
 
-VlcVideoOutput::~VlcVideoOutput()
-{
-    uv_close(reinterpret_cast<uv_handle_t*>(&_async), 0);
+VlcVideoOutput::~VlcVideoOutput() {
+    uv_close(reinterpret_cast<uv_handle_t *>(&_async), 0);
     _async.data = nullptr;
 }
 
 unsigned VlcVideoOutput::video_format_cb(
-    char* chroma,
-    unsigned* width, unsigned* height,
-    unsigned* pitches, unsigned* lines)
-{
-    std::unique_ptr<VideoEvent> frameSetupEvent;
-    switch(_pixelFormat) {
+        char *chroma,
+        unsigned *width, unsigned *height,
+        unsigned *pitches, unsigned *lines) {
+    std::unique_ptr <VideoEvent> frameSetupEvent;
+    switch (_pixelFormat) {
         case PixelFormat::RV32: {
-            std::shared_ptr<RV32VideoFrame> videoFrame(new RV32VideoFrame());
+            std::shared_ptr <RV32VideoFrame> videoFrame(new RV32VideoFrame());
             frameSetupEvent.reset(new RV32FrameSetupEvent(videoFrame));
             _videoFrame = videoFrame;
             break;
         }
         case PixelFormat::I420:
         default: {
-            std::shared_ptr<I420VideoFrame> videoFrame(new I420VideoFrame());
+            std::shared_ptr <I420VideoFrame> videoFrame(new I420VideoFrame());
             frameSetupEvent.reset(new I420FrameSetupEvent(videoFrame));
             _videoFrame = videoFrame;
             break;
@@ -268,10 +244,10 @@ unsigned VlcVideoOutput::video_format_cb(
     }
 
     const unsigned planeCount =
-        _videoFrame->video_format_cb(
-            chroma,
-            width, height,
-            pitches, lines);
+            _videoFrame->video_format_cb(
+                    chroma,
+                    width, height,
+                    pitches, lines);
 
     _guard.lock();
     _videoEvents.push_back(std::move(frameSetupEvent));
@@ -283,8 +259,7 @@ unsigned VlcVideoOutput::video_format_cb(
     return planeCount;
 }
 
-void VlcVideoOutput::video_cleanup_cb()
-{
+void VlcVideoOutput::video_cleanup_cb() {
     _videoFrame->video_cleanup_cb();
 
     _guard.lock();
@@ -293,23 +268,19 @@ void VlcVideoOutput::video_cleanup_cb()
     uv_async_send(&_async);
 }
 
-void* VlcVideoOutput::video_lock_cb(void** planes)
-{
+void *VlcVideoOutput::video_lock_cb(void **planes) {
     return _videoFrame->video_lock_cb(planes);
 }
 
-void VlcVideoOutput::video_unlock_cb(void* picture, void *const * planes)
-{
+void VlcVideoOutput::video_unlock_cb(void *picture, void *const *planes) {
     _videoFrame->video_unlock_cb(picture, planes);
 }
 
-void VlcVideoOutput::video_display_cb(void* /*picture*/)
-{
+void VlcVideoOutput::video_display_cb(void * /*picture*/) {
     notifyFrameReady();
 }
 
-void VlcVideoOutput::notifyFrameReady()
-{
+void VlcVideoOutput::notifyFrameReady() {
     _waitingFrame.clear(); //FIXME! use memory_order
 
     _guard.lock();
@@ -318,20 +289,18 @@ void VlcVideoOutput::notifyFrameReady()
     uv_async_send(&_async);
 }
 
-void VlcVideoOutput::handleAsync()
-{
-    while(!_videoEvents.empty()) {
-        std::deque<std::unique_ptr<VideoEvent> > tmpEvents;
+void VlcVideoOutput::handleAsync() {
+    while (!_videoEvents.empty()) {
+        std::deque <std::unique_ptr<VideoEvent>> tmpEvents;
         _guard.lock();
         _videoEvents.swap(tmpEvents);
         _guard.unlock();
-        for(const auto& i: tmpEvents) {
+        for (const auto &i: tmpEvents) {
             i->process(this);
         }
     }
 }
 
-bool VlcVideoOutput::isFrameReady()
-{
+bool VlcVideoOutput::isFrameReady() {
     return !_waitingFrame.test_and_set(); //FIXME! use memory_order
 }
