@@ -4,6 +4,8 @@
 #include "JsVlcPlayer.h"
 #include "JsVlcDeinterlace.h"
 
+using namespace v8;
+
 v8::Persistent <v8::Function> JsVlcVideo::_jsConstructor;
 
 void JsVlcVideo::initJsApi() {
@@ -23,6 +25,7 @@ void JsVlcVideo::initJsApi() {
     Local <ObjectTemplate> instanceTemplate = constructorTemplate->InstanceTemplate();
     instanceTemplate->SetInternalFieldCount(1);
 
+    SET_RO_PROPERTY(instanceTemplate, "tracks", &JsVlcVideo::getTracksArray);
     SET_RO_PROPERTY(instanceTemplate, "count", &JsVlcVideo::count);
 
     SET_RO_PROPERTY(instanceTemplate, "deinterlace", &JsVlcVideo::deinterlace);
@@ -37,6 +40,47 @@ void JsVlcVideo::initJsApi() {
 
     Local <Function> constructor = constructorTemplate->GetFunction(context).ToLocalChecked();
     _jsConstructor.Reset(isolate, constructor);
+}
+
+Local <Array> JsVlcVideo::getTracksArray() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                String::NewFromUtf8(isolate, description(i).c_str(), NewStringType::kInternalized).ToLocalChecked()
+        );
+    }
+    return jsArr;
+}
+
+std::string JsVlcVideo::description(uint32_t index) {
+    vlc_player &p = _jsPlayer->player();
+
+    std::string name;
+
+    libvlc_track_description_t *rootTrackDesc =
+            libvlc_video_get_track_description(p.get_mp());
+    if (!rootTrackDesc)
+        return name;
+
+    unsigned count = _jsPlayer->player().video().track_count();
+    if (count && index < count) {
+        libvlc_track_description_t *trackDesc = rootTrackDesc;
+        for (; index && trackDesc; --index) {
+            trackDesc = trackDesc->p_next;
+        }
+
+        if (trackDesc && trackDesc->psz_name) {
+            name = trackDesc->psz_name;
+        }
+    }
+    libvlc_track_description_list_release(rootTrackDesc);
+
+    return name;
 }
 
 v8::UniquePersistent <v8::Object> JsVlcVideo::create(JsVlcPlayer &player) {

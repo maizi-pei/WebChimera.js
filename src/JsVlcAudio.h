@@ -14,6 +14,8 @@ public:
 
     static v8::UniquePersistent <v8::Object> create(JsVlcPlayer &player);
 
+    v8::Local <v8::Array> getTracksArray();
+
     std::string description(uint32_t index);
 
     unsigned count();

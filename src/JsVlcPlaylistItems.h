@@ -14,6 +14,8 @@ public:
 
     v8::Local <v8::Object> item(uint32_t index);
 
+    v8::Local <v8::Array> getTracksArray();
+
     unsigned count();
 
     void clear();

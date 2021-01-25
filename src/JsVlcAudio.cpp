@@ -3,6 +3,8 @@
 #include "NodeTools.h"
 #include "JsVlcPlayer.h"
 
+using namespace v8;
+
 v8::Persistent <v8::Function> JsVlcAudio::_jsConstructor;
 
 void JsVlcAudio::initJsApi() {
@@ -45,8 +47,7 @@ void JsVlcAudio::initJsApi() {
             Integer::New(isolate, libvlc_AudioChannel_Dolbys),
             static_cast<PropertyAttribute>(ReadOnly | DontDelete));
 
-    SET_RO_INDEXED_PROPERTY(instanceTemplate, &JsVlcAudio::description);
-
+    SET_RO_PROPERTY(instanceTemplate, "tracks", &JsVlcAudio::getTracksArray);
     SET_RO_PROPERTY(instanceTemplate, "count", &JsVlcAudio::count);
 
     SET_RW_PROPERTY(instanceTemplate, "track", &JsVlcAudio::track, &JsVlcAudio::setTrack);
@@ -106,6 +107,21 @@ void JsVlcAudio::jsCreate(const v8::FunctionCallbackInfo <v8::Value> &args) {
 JsVlcAudio::JsVlcAudio(v8::Local <v8::Object> &thisObject, JsVlcPlayer *jsPlayer) :
         _jsPlayer(jsPlayer) {
     Wrap(thisObject);
+}
+
+Local <Array> JsVlcAudio::getTracksArray() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                String::NewFromUtf8(isolate, description(i).c_str(), NewStringType::kInternalized).ToLocalChecked()
+        );
+    }
+    return jsArr;
 }
 
 std::string JsVlcAudio::description(uint32_t index) {

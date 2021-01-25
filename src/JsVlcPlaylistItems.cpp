@@ -4,6 +4,8 @@
 #include "JsVlcPlayer.h"
 #include "JsVlcMedia.h"
 
+using namespace v8;
+
 v8::Persistent <v8::Function> JsVlcPlaylistItems::_jsConstructor;
 
 void JsVlcPlaylistItems::initJsApi() {
@@ -23,9 +25,8 @@ void JsVlcPlaylistItems::initJsApi() {
     Local <ObjectTemplate> instanceTemplate = constructorTemplate->InstanceTemplate();
     instanceTemplate->SetInternalFieldCount(1);
 
+    SET_RO_PROPERTY(instanceTemplate, "items", &JsVlcPlaylistItems::getTracksArray);
     SET_RO_PROPERTY(instanceTemplate, "count", &JsVlcPlaylistItems::count);
-
-    SET_RO_INDEXED_PROPERTY(instanceTemplate, &JsVlcPlaylistItems::item);
 
     SET_METHOD(constructorTemplate, "clear", &JsVlcPlaylistItems::clear);
     SET_METHOD(constructorTemplate, "remove", &JsVlcPlaylistItems::remove);
@@ -85,6 +86,21 @@ JsVlcPlaylistItems::JsVlcPlaylistItems(
 
 v8::Local <v8::Object> JsVlcPlaylistItems::item(uint32_t index) {
     return JsVlcMedia::create(*_jsPlayer, _jsPlayer->player().get_media(index));
+}
+
+Local <Array> JsVlcPlaylistItems::getTracksArray() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                item(i)
+        );
+    }
+    return jsArr;
 }
 
 unsigned JsVlcPlaylistItems::count() {

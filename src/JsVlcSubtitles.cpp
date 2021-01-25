@@ -3,10 +3,11 @@
 #include "NodeTools.h"
 #include "JsVlcPlayer.h"
 
-v8::Persistent <v8::Function> JsVlcSubtitles::_jsConstructor;
+using namespace v8;
+
+Persistent <Function> JsVlcSubtitles::_jsConstructor;
 
 void JsVlcSubtitles::initJsApi() {
-    using namespace v8;
 
     Isolate *isolate = Isolate::GetCurrent();
     HandleScope scope(isolate);
@@ -20,9 +21,9 @@ void JsVlcSubtitles::initJsApi() {
     Local <ObjectTemplate> instanceTemplate = constructorTemplate->InstanceTemplate();
     instanceTemplate->SetInternalFieldCount(1);
 
-    SET_RO_INDEXED_PROPERTY(instanceTemplate, &JsVlcSubtitles::description);
-
     SET_RO_PROPERTY(instanceTemplate, "count", &JsVlcSubtitles::count);
+
+    SET_RO_PROPERTY(instanceTemplate, "tracks", &JsVlcSubtitles::getTracksArray);
 
     SET_RW_PROPERTY(instanceTemplate, "track", &JsVlcSubtitles::track, &JsVlcSubtitles::setTrack);
     SET_RW_PROPERTY(instanceTemplate, "delay", &JsVlcSubtitles::delay, &JsVlcSubtitles::setDelay);
@@ -33,8 +34,7 @@ void JsVlcSubtitles::initJsApi() {
     _jsConstructor.Reset(isolate, constructor);
 }
 
-v8::UniquePersistent <v8::Object> JsVlcSubtitles::create(JsVlcPlayer &player) {
-    using namespace v8;
+UniquePersistent <Object> JsVlcSubtitles::create(JsVlcPlayer &player) {
 
     Isolate *isolate = Isolate::GetCurrent();
     Local <Context> context = isolate->GetCurrentContext();
@@ -51,8 +51,7 @@ v8::UniquePersistent <v8::Object> JsVlcSubtitles::create(JsVlcPlayer &player) {
     };
 }
 
-void JsVlcSubtitles::jsCreate(const v8::FunctionCallbackInfo <v8::Value> &args) {
-    using namespace v8;
+void JsVlcSubtitles::jsCreate(const FunctionCallbackInfo <Value> &args) {
 
     Isolate *isolate = Isolate::GetCurrent();
     Local <Context> context = isolate->GetCurrentContext();
@@ -79,6 +78,21 @@ JsVlcSubtitles::JsVlcSubtitles(
         v8::Local <v8::Object> &thisObject, JsVlcPlayer *jsPlayer) :
         _jsPlayer(jsPlayer) {
     Wrap(thisObject);
+}
+
+Local <Array> JsVlcSubtitles::getTracksArray() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                String::NewFromUtf8(isolate, description(i).c_str(), NewStringType::kInternalized).ToLocalChecked()
+        );
+    }
+    return jsArr;
 }
 
 std::string JsVlcSubtitles::description(uint32_t index) {
