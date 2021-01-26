@@ -28,6 +28,8 @@ void JsVlcVideo::initJsApi() {
     SET_RO_PROPERTY(instanceTemplate, "tracks", &JsVlcVideo::getTracksArray);
     SET_RO_PROPERTY(instanceTemplate, "count", &JsVlcVideo::count);
 
+    SET_RO_PROPERTY(instanceTemplate, "width", &JsVlcVideo::width);
+    SET_RO_PROPERTY(instanceTemplate, "height", &JsVlcVideo::height);
     SET_RO_PROPERTY(instanceTemplate, "deinterlace", &JsVlcVideo::deinterlace);
 
     SET_RW_PROPERTY(instanceTemplate, "track", &JsVlcVideo::track, &JsVlcVideo::setTrack);
@@ -40,6 +42,42 @@ void JsVlcVideo::initJsApi() {
 
     Local <Function> constructor = constructorTemplate->GetFunction(context).ToLocalChecked();
     _jsConstructor.Reset(isolate, constructor);
+}
+
+Local <Array> JsVlcVideo::width() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        unsigned px;
+        unsigned py;
+        _jsPlayer->player().video().get_size(i, &px, &py);
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                Integer::New(isolate, px)
+        );
+    }
+    return jsArr;
+}
+
+Local <Array> JsVlcVideo::height() {
+    Isolate *isolate = Isolate::GetCurrent();
+    Local <Context> context = isolate->GetCurrentContext();
+
+    Local <Array> jsArr = Array::New(isolate, count());
+    for (int i = 0; i < jsArr->Length(); i++) {
+        unsigned px;
+        unsigned py;
+        _jsPlayer->player().video().get_size(i, &px, &py);
+        jsArr->Set(
+                context,
+                Integer::New(isolate, i),
+                Integer::New(isolate, py)
+        );
+    }
+    return jsArr;
 }
 
 Local <Array> JsVlcVideo::getTracksArray() {

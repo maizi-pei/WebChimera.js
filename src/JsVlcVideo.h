@@ -20,6 +20,10 @@ public:
 
     unsigned count();
 
+    v8::Local <v8::Array> width();
+
+    v8::Local <v8::Array> height();
+
     int track();
 
     void setTrack(unsigned);
