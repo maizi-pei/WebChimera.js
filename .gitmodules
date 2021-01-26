@@ -1,0 +1,3 @@
+[submodule "deps/libvlc_wrapper"]
+	path = deps/libvlc_wrapper
+	url = https://github.com/RuurdBijlsma/libvlc_wrapper
