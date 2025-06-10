@@ -1,5 +1,5 @@
 set npm_config_wcjs_runtime=electron
-set npm_config_wcjs_runtime_version=12.0.9
+set npm_config_wcjs_runtime_version=12.2.3
 set npm_config_wcjs_arch=x64
 
 echo [INFO] 开始构建 WebChimera.js for Electron...

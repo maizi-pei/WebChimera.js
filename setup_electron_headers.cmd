@@ -9,7 +9,7 @@ echo [INFO] 检测Windows环境...
 
 REM 解析命令行参数
 set "SCRIPT_ARGS="
-set "ELECTRON_VERSION=12.0.9"
+set "ELECTRON_VERSION=12.2.3"
 set "PROXY_URL="
 set "SHOW_HELP="
 
@@ -84,12 +84,25 @@ REM 检查Git是否可用
 where git >nul 2>&1
 if %errorlevel% == 0 (
     echo [INFO] 尝试使用Git Bash运行脚本...
-    if defined PROXY_URL (
-        git bash -c "./setup_electron_headers.sh -v %ELECTRON_VERSION% -p \"%PROXY_URL%\""
-    ) else (
-        git bash -c "./setup_electron_headers.sh -v %ELECTRON_VERSION%"
+    REM 查找Git安装目录下的bash.exe
+    for /f "tokens=*" %%i in ('where git') do (
+        set "git_path=%%i"
+        goto :found_git
     )
-    goto :check_result
+    :found_git
+    set "git_dir=!git_path:\cmd\git.exe=!"
+    set "bash_path=!git_dir!\bin\bash.exe"
+    
+    if exist "!bash_path!" (
+        if defined PROXY_URL (
+            "!bash_path!" ./setup_electron_headers.sh -v %ELECTRON_VERSION% -p "%PROXY_URL%"
+        ) else (
+            "!bash_path!" ./setup_electron_headers.sh -v %ELECTRON_VERSION%
+        )
+        goto :check_result
+    ) else (
+        echo [WARN] 未找到Git Bash可执行文件
+    )
 )
 
 REM 检查WSL是否可用
