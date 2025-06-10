@@ -9,3 +9,5 @@ deps/vlc-*.dmg
 .idea
 cmake-build-debug
 deps
+
+.DS_Store
