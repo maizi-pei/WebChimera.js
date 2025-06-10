@@ -8,3 +8,4 @@ deps/VLC*.app/
 deps/vlc-*.dmg
 .idea
 cmake-build-debug
+deps

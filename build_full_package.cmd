@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
 REM WebChimera.js Windows 打包脚本
@@ -6,6 +7,13 @@ REM 检测Git Bash并运行主脚本
 
 echo [INFO] WebChimera.js Windows 打包脚本
 echo [INFO] 检测Windows环境...
+
+REM 设置代理环境变量（如果需要）
+REM 取消可能有问题的代理设置
+set HTTP_PROXY=
+set HTTPS_PROXY=
+set http_proxy=
+set https_proxy=
 
 REM 检查是否在Git Bash环境中
 if defined BASH_VERSION (
@@ -18,8 +26,26 @@ REM 检查Git Bash是否可用
 where git >nul 2>&1
 if %errorlevel% == 0 (
     echo [INFO] 尝试使用Git Bash运行脚本...
-    git bash -c "./build_full_package.sh %*"
-    goto :end
+    REM 查找Git安装目录下的bash.exe
+    for /f "tokens=*" %%i in ('where git') do (
+        set "git_path=%%i"
+        goto :found_git
+    )
+    :found_git
+    set "git_dir=!git_path:\cmd\git.exe=!"
+    set "bash_path=!git_dir!\bin\bash.exe"
+    
+    if exist "!bash_path!" (
+        REM 清除代理设置并运行bash
+        set HTTP_PROXY=
+        set HTTPS_PROXY=
+        set http_proxy=
+        set https_proxy=
+        "!bash_path!" ./build_full_package.sh %*
+        goto :end
+    ) else (
+        echo [WARN] 未找到Git Bash可执行文件
+    )
 )
 
 REM 检查WSL是否可用

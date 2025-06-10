@@ -164,20 +164,47 @@ download_vlc() {
 
 # macOS VLC 下载
 download_vlc_macos() {
+    # 清理可能有问题的代理设置
+    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+    
     if [[ ! -f "$VLC_FILE" ]]; then
         print_info "下载 VLC $VLC_VER for macOS..."
-        curl -L -o "$VLC_FILE" "$VLC_URL"
-        print_success "VLC 下载完成"
+        print_info "URL: $VLC_URL"
+        
+        # 使用更安全的curl选项
+        if curl --version &> /dev/null; then
+            if curl -L --fail --retry 3 --retry-delay 5 -o "$VLC_FILE" "$VLC_URL"; then
+                print_success "VLC 下载完成"
+            else
+                print_error "VLC 下载失败"
+                print_info "请检查网络连接或手动下载:"
+                print_info "$VLC_URL"
+                exit 1
+            fi
+        else
+            print_error "curl 命令不可用"
+            print_info "请手动下载 VLC 并放置到: $VLC_FILE"
+            exit 1
+        fi
     else
         print_info "VLC DMG 已存在，跳过下载"
     fi
     
     if [[ ! -d "$VLC_APP" ]]; then
         print_info "挂载和提取 VLC.app..."
-        hdiutil mount "$VLC_FILE"
-        cp -R "/Volumes/VLC media player/VLC.app" "$DEPS_DIR/"
-        hdiutil unmount "/Volumes/VLC media player"
-        print_success "VLC.app 提取完成"
+        if hdiutil mount "$VLC_FILE"; then
+            if cp -R "/Volumes/VLC media player/VLC.app" "$DEPS_DIR/"; then
+                print_success "VLC.app 提取完成"
+            else
+                print_error "VLC.app 复制失败"
+                hdiutil unmount "/Volumes/VLC media player" 2>/dev/null || true
+                exit 1
+            fi
+            hdiutil unmount "/Volumes/VLC media player"
+        else
+            print_error "VLC DMG 挂载失败"
+            exit 1
+        fi
     else
         print_info "VLC.app 已存在，跳过提取"
     fi
@@ -185,10 +212,28 @@ download_vlc_macos() {
 
 # Windows VLC 下载
 download_vlc_windows() {
+    # 清理可能有问题的代理设置
+    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+    
     if [[ ! -f "$VLC_FILE" ]]; then
         print_info "下载 VLC $VLC_VER for Windows ($ARCH)..."
-        curl -L -o "$VLC_FILE" "$VLC_URL"
-        print_success "VLC 下载完成"
+        print_info "URL: $VLC_URL"
+        
+        # 使用更安全的curl选项
+        if curl --version &> /dev/null; then
+            if curl -L --fail --retry 3 --retry-delay 5 -o "$VLC_FILE" "$VLC_URL"; then
+                print_success "VLC 下载完成"
+            else
+                print_error "VLC 下载失败"
+                print_info "请检查网络连接或手动下载:"
+                print_info "$VLC_URL"
+                exit 1
+            fi
+        else
+            print_error "curl 命令不可用"
+            print_info "请手动下载 VLC 并放置到: $VLC_FILE"
+            exit 1
+        fi
     else
         print_info "VLC ZIP 已存在，跳过下载"
     fi
@@ -199,16 +244,29 @@ download_vlc_windows() {
         
         # 尝试多种解压方法
         if command -v unzip &> /dev/null; then
-            unzip -q "$(basename "$VLC_FILE")"
+            if unzip -q "$(basename "$VLC_FILE")"; then
+                print_success "使用 unzip 解压成功"
+            else
+                print_error "unzip 解压失败"
+                exit 1
+            fi
         elif command -v 7z &> /dev/null; then
-            7z x "$(basename "$VLC_FILE")"
+            if 7z x "$(basename "$VLC_FILE")" -y; then
+                print_success "使用 7z 解压成功"
+            else
+                print_error "7z 解压失败"
+                exit 1
+            fi
         elif command -v tar &> /dev/null && [[ -f /usr/bin/tar ]]; then
             # 某些Windows环境下tar可能支持zip
-            tar -xf "$(basename "$VLC_FILE")" 2>/dev/null || {
+            if tar -xf "$(basename "$VLC_FILE")" 2>/dev/null; then
+                print_success "使用 tar 解压成功"
+            else
+                print_error "tar 解压失败"
                 print_error "无法解压 VLC ZIP 文件"
                 print_info "请手动安装 unzip 或 7-Zip"
                 exit 1
-            }
+            fi
         else
             print_error "未找到解压工具 (unzip/7z)"
             print_info "请安装 unzip 或 7-Zip"
@@ -354,30 +412,32 @@ create_package_macos() {
 create_package_windows() {
     if [[ -d "$VLC_DIR" ]]; then
         print_info "复制 VLC DLL 文件..."
-        mkdir -p "$OUT_DIR/lib"
         
-        # 复制主要的VLC DLL文件
+        # 复制主要的VLC DLL文件到根目录（与正确结构一致）
         if [[ -f "$VLC_DIR/libvlc.dll" ]]; then
-            cp "$VLC_DIR/libvlc.dll" "$OUT_DIR/lib/"
+            cp "$VLC_DIR/libvlc.dll" "$OUT_DIR/"
+            print_info "复制 libvlc.dll"
         fi
         if [[ -f "$VLC_DIR/libvlccore.dll" ]]; then
-            cp "$VLC_DIR/libvlccore.dll" "$OUT_DIR/lib/"
+            cp "$VLC_DIR/libvlccore.dll" "$OUT_DIR/"
+            print_info "复制 libvlccore.dll"
         fi
-        
-        # 复制其他DLL文件
-        find "$VLC_DIR" -name "*.dll" -exec cp {} "$OUT_DIR/lib/" \; 2>/dev/null || true
         
         print_info "复制 VLC 插件..."
         if [[ -d "$VLC_DIR/plugins" ]]; then
-            mkdir -p "$OUT_DIR/lib/vlc"
-            cp -R "$VLC_DIR/plugins" "$OUT_DIR/lib/vlc/" 2>/dev/null || true
+            # 插件直接复制到 plugins/ 目录（与正确结构一致）
+            cp -R "$VLC_DIR/plugins" "$OUT_DIR/"
+            print_info "复制插件目录到 plugins/"
         fi
         
-        print_info "复制 VLC Lua 脚本..."
-        if [[ -d "$VLC_DIR/lua" ]]; then
-            mkdir -p "$OUT_DIR/lib/vlc/share"
-            cp -R "$VLC_DIR/lua" "$OUT_DIR/lib/vlc/share/" 2>/dev/null || true
-        fi
+        # 不复制其他 DLL 文件和 Lua 脚本，保持简洁结构
+        print_info "Windows 包结构:"
+        print_info "- WebChimera.js.node"
+        print_info "- index.js"
+        print_info "- package.json"
+        print_info "- libvlc.dll"
+        print_info "- libvlccore.dll"
+        print_info "- plugins/ (VLC 插件目录)"
     else
         print_warning "VLC 目录不存在，跳过 VLC 文件复制"
     fi
@@ -392,15 +452,60 @@ create_package_linux() {
 # 创建 ZIP 包（Windows）
 create_zip_package() {
     if command -v zip &> /dev/null; then
+        print_info "使用 zip 创建包..."
         cd "$BUILD_DIR"
         zip -r "$(basename "$ARCHIVE_PATH")" webchimera.js/
         cd - > /dev/null
     elif command -v 7z &> /dev/null; then
+        print_info "使用 7z 创建包..."
         7z a "$ARCHIVE_PATH" "$OUT_DIR"
     else
-        print_error "未找到打包工具 (zip/7z)"
-        print_info "请安装 zip 或 7-Zip"
-        exit 1
+        # 在 Windows 上查找常见的 7-Zip 安装路径
+        SEVENZIP_PATHS=(
+            "/c/Program Files/7-Zip/7z.exe"
+            "/c/Program Files (x86)/7-Zip/7z.exe"
+            "C:/Program Files/7-Zip/7z.exe"
+            "C:/Program Files (x86)/7-Zip/7z.exe"
+            "/mnt/c/Program Files/7-Zip/7z.exe"
+            "/mnt/c/Program Files (x86)/7-Zip/7z.exe"
+        )
+        
+        SEVENZIP_FOUND=""
+        for path in "${SEVENZIP_PATHS[@]}"; do
+            if [[ -f "$path" ]]; then
+                SEVENZIP_FOUND="$path"
+                break
+            fi
+        done
+        
+        if [[ -n "$SEVENZIP_FOUND" ]]; then
+            print_info "找到 7-Zip: $SEVENZIP_FOUND"
+            print_info "使用 7-Zip 创建包..."
+            "$SEVENZIP_FOUND" a "$ARCHIVE_PATH" "$OUT_DIR"
+        elif [[ "$OS_TYPE" == "windows" ]]; then
+            # 尝试使用 PowerShell 的 Compress-Archive（Windows 10+）
+            print_info "尝试使用 PowerShell Compress-Archive..."
+            
+            # 转换路径格式
+            WIN_ARCHIVE_PATH=$(echo "$ARCHIVE_PATH" | sed 's|^/c/|C:/|' | sed 's|/|\\|g')
+            WIN_OUT_DIR=$(echo "$OUT_DIR" | sed 's|^/c/|C:/|' | sed 's|/|\\|g')
+            
+            if powershell.exe -Command "Compress-Archive -Path '$WIN_OUT_DIR' -DestinationPath '$WIN_ARCHIVE_PATH' -Force" 2>/dev/null; then
+                print_success "使用 PowerShell 创建包成功"
+            else
+                print_error "PowerShell 压缩失败"
+                print_error "未找到打包工具"
+                print_info "请安装以下任一工具:"
+                print_info "1. 7-Zip: https://www.7-zip.org/"
+                print_info "2. WinRAR"
+                print_info "3. 或添加 7z.exe 到 PATH 环境变量"
+                exit 1
+            fi
+        else
+            print_error "未找到打包工具 (zip/7z)"
+            print_info "请安装 zip 或 7-Zip"
+            exit 1
+        fi
     fi
 }
 
