@@ -6,7 +6,7 @@
 set -e
 
 # 默认配置
-DEFAULT_VERSION="12.0.9"
+DEFAULT_VERSION="12.2.3"
 CACHE_DIR="$HOME/.cmake-js"
 
 # 颜色输出

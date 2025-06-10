@@ -8,7 +8,7 @@ set -e
 
 # 配置
 VLC_VER="3.0.21"  # 将使用系统 VLC 版本
-ELECTRON_VER="12.0.9"
+ELECTRON_VER="12.2.3"
 BUILD_DIR="./build/Release"
 DEPS_DIR="./deps"
 SYSTEM_VLC_PATH="/Applications/VLC.app"
