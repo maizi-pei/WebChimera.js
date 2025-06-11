@@ -163,10 +163,11 @@ download_vlc() {
     esac
 }
 
-# macOS VLC 检查（不复制文件，使用系统安装）
+# macOS VLC 下载和准备
 download_vlc_macos() {
-    print_info "检查系统 VLC 安装..."
+    print_info "准备 VLC $VLC_VER for macOS..."
     
+    # 检查系统 VLC 安装并复制文件
     if [[ ! -d "$SYSTEM_VLC_PATH" ]]; then
         print_error "系统未安装 VLC，请先安装 VLC.app"
         print_info "下载地址: https://www.videolan.org/vlc/"
@@ -178,12 +179,21 @@ download_vlc_macos() {
     if [[ -n "$SYSTEM_VLC_VERSION" ]]; then
         print_info "检测到系统 VLC 版本: $SYSTEM_VLC_VERSION"
         VLC_VER="$SYSTEM_VLC_VERSION"  # 更新版本号
-        print_success "将使用系统 VLC $SYSTEM_VLC_VERSION"
+        print_success "将复制系统 VLC $SYSTEM_VLC_VERSION 文件"
     else
         print_warning "无法检测 VLC 版本，但 VLC.app 存在"
     fi
     
-    print_info "跳过 VLC 文件复制，使用系统安装的 VLC"
+    # 创建 VLC 应用副本用于打包
+    VLC_APP="$DEPS_DIR/VLC.app"
+    if [[ ! -d "$VLC_APP" ]]; then
+        print_info "复制系统 VLC 到 deps 目录..."
+        mkdir -p "$DEPS_DIR"
+        cp -R "$SYSTEM_VLC_PATH" "$VLC_APP"
+        print_success "VLC 文件复制完成"
+    else
+        print_info "VLC 副本已存在，跳过复制"
+    fi
 }
 
 # Windows VLC 下载
@@ -289,7 +299,14 @@ create_full_package() {
     cp -f "$BUILD_DIR/WebChimera.js.node" "$OUT_DIR/"
     
     print_info "创建 index.js..."
-    echo "module.exports = require('./WebChimera.js.node')" > "$OUT_DIR/index.js"
+    case "$OS_TYPE" in
+        "macos")
+            create_macos_index_js
+            ;;
+        *)
+            echo "module.exports = require('./WebChimera.js.node')" > "$OUT_DIR/index.js"
+            ;;
+    esac
     
     case "$OS_TYPE" in
         "macos")
@@ -362,125 +379,98 @@ EOF
     esac
 }
 
-# macOS 包创建（最小包，依赖系统 VLC）
-create_package_macos() {
-    print_info "创建最小包（依赖系统 VLC）..."
-    
-    # 修复 WebChimera.js.node 动态库路径，指向系统 VLC
-    print_info "修复 WebChimera.js.node 指向系统 VLC..."
-    if [[ -f "$OUT_DIR/WebChimera.js.node" ]]; then
-        # 检查当前的依赖路径
-        print_info "当前 WebChimera.js.node 的依赖:"
-        otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "(libvlc|vlc)" || true
-        
-        # 修改为指向系统 VLC
-        while IFS= read -r line; do
-            if [[ "$line" =~ libvlc.*\.dylib ]]; then
-                CURRENT_PATH=$(echo "$line" | awk '{print $1}')
-                LIBRARY_NAME=$(basename "$CURRENT_PATH")
-                NEW_PATH="/Applications/VLC.app/Contents/MacOS/lib/$LIBRARY_NAME"
-                print_info "修改路径: $CURRENT_PATH -> $NEW_PATH"
-                install_name_tool -change "$CURRENT_PATH" "$NEW_PATH" "$OUT_DIR/WebChimera.js.node" 2>/dev/null || true
-            fi
-        done < <(otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "libvlc")
-        
-        # 验证修改后的依赖
-        print_info "修改后 WebChimera.js.node 的依赖:"
-        otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "(libvlc|vlc|Applications)" || true
-    fi
-    
-    # 创建环境设置脚本
-    print_info "创建环境设置脚本..."
-    cat > "$OUT_DIR/setup_env.js" << 'EOF'
-// WebChimera.js 环境设置
-// 使用系统安装的 VLC
-
-const path = require('path');
-
-// 使用系统 VLC 路径
-const VLC_PATH = "/Applications/VLC.app/Contents/MacOS";
-const LIBVLC_PATH = path.join(VLC_PATH, "lib");
-const VLC_INCLUDE_PATH = path.join(VLC_PATH, "include");
-const VLC_PLUGIN_PATH = path.join(VLC_PATH, "plugins");
-
-// 设置 VLC 环境变量
-process.env.VLC_PATH = VLC_PATH;
-process.env.LIBVLC_PATH = LIBVLC_PATH;
-process.env.VLC_INCLUDE_PATH = VLC_INCLUDE_PATH;
-process.env.VLC_PLUGIN_PATH = VLC_PLUGIN_PATH;
-process.env.LIBVLC_INCLUDE_DIR = VLC_INCLUDE_PATH;
-process.env.LIBVLC_LIB_DIR = LIBVLC_PATH;
-
-// 设置库路径
-if (process.platform === 'darwin') {
-    // macOS
-    process.env.DYLD_LIBRARY_PATH = LIBVLC_PATH + ':' + (process.env.DYLD_LIBRARY_PATH || '');
-} else if (process.platform === 'linux') {
-    // Linux
-    process.env.LD_LIBRARY_PATH = LIBVLC_PATH + ':' + (process.env.LD_LIBRARY_PATH || '');
-}
-
-// 设置 PKG_CONFIG_PATH（如果存在）
-const PKG_CONFIG_PATH = path.join(VLC_PATH, "lib", "pkgconfig");
-const fs = require('fs');
-if (fs.existsSync(PKG_CONFIG_PATH)) {
-    process.env.PKG_CONFIG_PATH = PKG_CONFIG_PATH + ':' + (process.env.PKG_CONFIG_PATH || '');
-}
-
-console.log('WebChimera.js 环境已设置（使用系统 VLC）:');
-console.log('- VLC_PATH:', process.env.VLC_PATH);
-console.log('- LIBVLC_PATH:', process.env.LIBVLC_PATH);
-console.log('- VLC_INCLUDE_PATH:', process.env.VLC_INCLUDE_PATH);
-console.log('- VLC_PLUGIN_PATH:', process.env.VLC_PLUGIN_PATH);
-console.log('- DYLD_LIBRARY_PATH:', process.env.DYLD_LIBRARY_PATH);
-if (process.env.PKG_CONFIG_PATH) {
-    console.log('- PKG_CONFIG_PATH:', process.env.PKG_CONFIG_PATH);
-}
-
-// 验证系统 VLC 安装
-if (!fs.existsSync(VLC_PATH)) {
-    console.error('❌ 错误: 未找到系统 VLC 安装');
-    console.error('请从 https://www.videolan.org/vlc/ 下载并安装 VLC');
-} else {
-    console.log('✅ 系统 VLC 已找到');
-    
-    // 验证关键组件
-    if (!fs.existsSync(VLC_PLUGIN_PATH)) {
-        console.warn('⚠️  警告: VLC 插件目录不存在:', VLC_PLUGIN_PATH);
-    } else {
-        console.log('✅ VLC 插件目录存在');
-    }
-    
-    if (!fs.existsSync(LIBVLC_PATH)) {
-        console.warn('⚠️  警告: VLC 库目录不存在:', LIBVLC_PATH);
-    } else {
-        console.log('✅ VLC 库目录存在');
-    }
-    
-    if (!fs.existsSync(VLC_INCLUDE_PATH)) {
-        console.warn('⚠️  警告: VLC include 目录不存在:', VLC_INCLUDE_PATH);
-    } else {
-        console.log('✅ VLC include 目录存在');
-    }
-}
-EOF
-    
-    # 修改 index.js 以包含环境设置
-    print_info "更新 index.js 以包含环境设置..."
+# 创建 macOS index.js（简化版，环境变量由 electron_main.js 处理）
+create_macos_index_js() {
     cat > "$OUT_DIR/index.js" << 'EOF'
-// 首先设置环境
-require('./setup_env.js');
-
-// 然后加载 WebChimera.js
+// WebChimera.js for macOS
+// 环境变量由 electron_main.js 在主进程中设置，这里直接加载模块
 module.exports = require('./WebChimera.js.node');
 EOF
-    
-    print_info "macOS 最小包结构:"
-    print_info "- WebChimera.js.node (指向系统 VLC)"
-    print_info "- index.js (包含环境设置)"
-    print_info "- setup_env.js (环境设置脚本)"
-    print_info "- package.json"
-    print_info "说明: 此包依赖系统安装的 VLC.app"
+}
+
+# macOS 包创建（完整包，包含 VLC）
+create_package_macos() {
+    if [[ -d "$VLC_APP" ]]; then
+        print_info "创建完整包（包含 VLC）..."
+        
+        # 复制 VLC 库文件
+        print_info "复制 VLC 库文件..."
+        mkdir -p "$OUT_DIR/lib"
+        if [[ -d "$VLC_APP/Contents/MacOS/lib" ]]; then
+            cp -R "$VLC_APP/Contents/MacOS/lib/"* "$OUT_DIR/lib/" || true
+            print_info "复制库文件到 lib/"
+        fi
+        
+        # 复制 VLC 插件
+        print_info "复制 VLC 插件..."
+        if [[ -d "$VLC_APP/Contents/MacOS/plugins" ]]; then
+            cp -R "$VLC_APP/Contents/MacOS/plugins" "$OUT_DIR/"
+            print_info "复制插件目录到 plugins/"
+        fi
+        
+        # 复制 VLC share 目录
+        print_info "复制 VLC share 目录..."
+        if [[ -d "$VLC_APP/Contents/MacOS/share" ]]; then
+            cp -R "$VLC_APP/Contents/MacOS/share" "$OUT_DIR/"
+            print_info "复制 share 目录"
+        fi
+        
+        # 修复 WebChimera.js.node 动态库路径
+        print_info "修复 WebChimera.js.node 动态库路径..."
+        if [[ -f "$OUT_DIR/WebChimera.js.node" ]]; then
+            # 检查当前的依赖路径
+            print_info "当前 WebChimera.js.node 的依赖:"
+            otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "(libvlc|vlc)" || true
+            
+            # 修改依赖路径为相对路径
+            while IFS= read -r line; do
+                if [[ "$line" =~ libvlc.*\.dylib ]]; then
+                    CURRENT_PATH=$(echo "$line" | awk '{print $1}')
+                    LIBRARY_NAME=$(basename "$CURRENT_PATH")
+                    NEW_PATH="@loader_path/lib/$LIBRARY_NAME"
+                    print_info "修改路径: $CURRENT_PATH -> $NEW_PATH"
+                    install_name_tool -change "$CURRENT_PATH" "$NEW_PATH" "$OUT_DIR/WebChimera.js.node" 2>/dev/null || true
+                fi
+            done < <(otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "libvlc")
+            
+            # 验证修改后的依赖
+            print_info "修改后 WebChimera.js.node 的依赖:"
+            otool -L "$OUT_DIR/WebChimera.js.node" | grep -E "(libvlc|vlc|@loader_path)" || true
+        fi
+        
+        # 修复 VLC 库文件内部依赖
+        print_info "修复 VLC 库文件内部依赖..."
+        for lib in "$OUT_DIR/lib/"*.dylib; do
+            if [[ -f "$lib" ]]; then
+                LIBNAME=$(basename "$lib")
+                print_info "修复 $LIBNAME..."
+                
+                # 修改库文件 ID
+                install_name_tool -id "@loader_path/$LIBNAME" "$lib" 2>/dev/null || true
+                
+                # 修复对其他库的依赖
+                while IFS= read -r line; do
+                    if [[ "$line" =~ @rpath/libvlc.*\.dylib ]]; then
+                        CURRENT_PATH=$(echo "$line" | awk '{print $1}')
+                        LIBRARY_NAME=$(basename "$CURRENT_PATH")
+                        NEW_PATH="@loader_path/$LIBRARY_NAME"
+                        install_name_tool -change "$CURRENT_PATH" "$NEW_PATH" "$lib" 2>/dev/null || true
+                    fi
+                done < <(otool -L "$lib" | grep -E "@rpath/libvlc")
+            fi
+        done
+        
+        print_info "macOS 完整包结构:"
+        print_info "- WebChimera.js.node (修复动态库路径)"
+        print_info "- index.js"
+        print_info "- package.json"
+        print_info "- lib/ (VLC 动态库)"
+        print_info "- plugins/ (VLC 插件)"
+        print_info "- share/ (VLC 共享文件)"
+    else
+        print_warning "VLC 应用不存在，创建最小包"
+        print_info "macOS 最小包（需要系统 VLC）"
+    fi
 }
 
 # Windows 包创建
